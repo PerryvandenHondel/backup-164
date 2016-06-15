@@ -23,7 +23,7 @@ const
 	CONF_NAME = 								'backup.conf';
 	BACKUP_TYPE_FULL = 							1;
 	BACKUP_TYPE_INCR = 							2;
-	EXTENSION_BACKUP = 							'.7z';
+	EXTENSION_BACKUP = 							'.rar';
 	
 	
 var
@@ -78,15 +78,39 @@ begin
 	
 	MakeFolderTree(pathBackupFile);
 	
-	//c := '
+	c := 'rar.exe';
+	c := c + ' ';
+	c := c + 'a';
+	c := c + ' ';
+	c := c + '-r';
+	c := c + ' ';
+	c := c + '-m0';
+	c := c + ' ';
+	c := c + '-ep2';
+	c := c + ' ';
+	if backupType = BACKUP_TYPE_FULL then
+		c := c + '-ac'
+	else 
+		c := c + '-ao';
+	c := c + ' ';
+	c := c + EncloseDoubleQuote(pathBackupFile);
+	c := c + ' ';
+	c := c + EncloseDoubleQuote(FixFolderAdd(folderSource) + '*.*');
+	
+	WriteLn;
+	WriteLn(c);
+	WriteLn;
 end;
 
 
 procedure SelectBackup(setName: Ansistring; folderSource: Ansistring; folderBackup: Ansistring; keepFull: integer; keepIncr: integer);
 var
 	folderBackupSetFull: Ansistring;
+	folderBackupSetIncr: Ansistring;
 	folderBackupSetFullDate: Ansistring;
+	folderBackupSetIncrDate: Ansistring;
 	countFull: integer;
+	countIncr: integer;
 begin
 	WriteLn;
 	WriteLn('SelectBackup():');
@@ -99,14 +123,34 @@ begin
 	folderBackupSetFull := FixFolderAdd(folderBackup) + FixFolderAdd(setName) + 'full';
 	MakeFolderTree(folderBackupSetFull);
 	
+	folderBackupSetIncr := FixFolderAdd(folderBackup) + FixFolderAdd(setName) + 'incr';
+	MakeFolderTree(folderBackupSetIncr);
+	
 	countFull := CountSubDirectories(folderBackupSetFull);
+	countIncr := CountSubDirectories(folderBackupSetIncr);
+
+	folderBackupSetFullDate := FixFolderAdd(folderBackupSetFull) + GetDateFs(false) + '-' + GetTimeFs();
+	folderBackupSetIncrDate := FixFolderAdd(folderBackupSetIncr) + GetDateFs(false) + '-' + GetTimeFs();
 	
 	WriteLn('Found full backups is ', folderBackupSetFull, ': ', countFull);
 	
 	if countFull = 0 then
 	begin
-		folderBackupSetFullDate := FixFolderAdd(folderBackupSetFull) + GetDateFs(false) + '-' + GetTimeFs();
+		WriteLn('INFO: No backups found, first backup is a full.');
 		MakeBackup(setName, folderSource, folderBackupSetFullDate, BACKUP_TYPE_FULL);
+	end
+	else
+	begin
+		if countIncr < keepIncr Then
+		begin	
+			WriteLn('INFO: Need more incremental backups, have ', countIncr, ' and need ', keepIncr);
+			MakeBackup(setName, folderSource, folderBackupSetIncrDate, BACKUP_TYPE_INCR);
+		end
+		else if countIncr >= keepIncr then
+		begin
+			WriteLn('INFO: I have enough incremental backups, make a full again');
+			MakeBackup(setName, folderSource, folderBackupSetFullDate, BACKUP_TYPE_FULL);
+		end;
 	end;
 end;
 
@@ -143,12 +187,31 @@ begin
 end;
 
 
+
+procedure ProgDone();
+begin
+	DeleteFile(pathPid);
+end;
+
+
+
 procedure ProgRun();
-var
+{var
 	setList: Ansistring;
 	setArray: TStringArray;
 	x: integer;
+	}
 begin
+	if ParamCount() = 0 then
+	begin
+		WriteLn('Usage: ' + ParamStr(0) + ' <BACKUP-SET>');
+		ProgDone();
+	end
+	else
+	begin
+		ProcessSingleBackupSet(ParamStr(1));
+	end;
+	{ 
 	setList := ReadSettingKey(pathConfig, 'Settings', 'Sets');
 	
 	SetLength(setArray, 0);   
@@ -158,15 +221,10 @@ begin
 		//WriteLn(x, ': ', #9, LogsArray[x]);
 		ProcessSingleBackupSet(setArray[x]);
 	end;
-	
+	}
 	WriteLn('Number of sub directories of D:\TEMP: ', CountSubDirectories('D:\TEMP\'));
 end;
 
-
-procedure ProgDone();
-begin
-	DeleteFile(pathPid);
-end;
 
 	
 begin
