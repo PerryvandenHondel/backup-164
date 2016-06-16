@@ -43,8 +43,8 @@ type
 var
 	pathPid: Ansistring;
 	pathConfig: Ansistring;
-	afr: TFolder;
-	
+	afr: TFolder; // Array of Folder Records
+	folderTemp: Ansistring;
 	
 	
 procedure DeleteDirectory(const Name: string);
@@ -74,7 +74,7 @@ end; // of DeleteDirectory
 procedure KeepNewestFolders(const inThisDirectory: Ansistring; keepNumber: integer);
 var
 	sr: TSearchRec;
-	size: integer;
+	afrSize: integer;
 	x: integer;
 	folderCount: integer;
 begin
@@ -89,9 +89,9 @@ begin
 				begin
 					WriteLn(sr.Name, '      ', sr.Time);
 					
-					size := Length(afr);
-					SetLength(afr, size + 1);
-					afr[size].path := sr.Name;
+					afrSize := Length(afr);
+					SetLength(afr, afrSize + 1);
+					afr[afrSize].path := sr.Name;
 				end;
 			end;
 		until FindNext(sr)<>0;
@@ -183,20 +183,26 @@ var
 	rc: integer;
 	preAction: Ansistring;
 	postAction: Ansistring;
+	fileName: Ansistring;
 begin
 	WriteLn;
 	
-	pathBackupFile := FixFolderAdd(folderBackupSetFullDate) + 'backup' + EXTENSION_BACKUP;
+	if backupType = BACKUP_TYPE_FULL then
+		fileName := 'full'
+	else
+		fileName := 'incr';
+	
+	pathBackupFile := FixFolderAdd(folderBackupSetFullDate) + fileName + EXTENSION_BACKUP;
 	
 	WriteLn('MakeBackup():');
-	WriteLn(#9, 'Set name             : ', setName);
-	WriteLn(#9, 'Folder source        : ', folderSource);
-	WriteLn(#9, 'File to backup to    : ', pathBackupFile);
+	WriteLn('             Set name : ', setName);
+	WriteLn('        Folder source : ', folderSource);
+	WriteLn('  Path of backup file : ', pathBackupFile);
 	if backupType = BACKUP_TYPE_FULL then
-		WriteLn(#9, 'Type of Backup       : FULL');
+		WriteLn('       Type of Backup : FULL');
 		
 	if backupType = BACKUP_TYPE_INCR then
-		WriteLn(#9, 'Type of Backup       : INCREMENTAL');
+		WriteLn('       Type of Backup : INCREMENTAL');
 		
 	preAction := ReadSettingKey(pathConfig, setName, 'ActionsPre');
 	if Length(preAction) > 0 then
@@ -224,6 +230,8 @@ begin
 		c := c + '-ac' // Clear archive bit after compression.
 	else 
 		c := c + '-ao'; // Add file with archive bit on.
+	c := c + ' ';
+	c := c + '-w' + folderTemp;  // Use as working folder
 	c := c + ' ';
 	c := c + EncloseDoubleQuote(pathBackupFile);
 	c := c + ' ';
@@ -347,6 +355,9 @@ begin
 	keepFull := StrToInt(ReadSettingKey(pathConfig, setName, 'KeepFull'));
 	keepIncr := StrToInt(ReadSettingKey(pathConfig, setName, 'KeepIncr'));
 	
+	// Place all backup in a folder under the computer name
+	folderBackup := FixFolderAdd(folderBackup) + GetCurrentComputerName;
+	
 	SelectBackup(setName, folderSource, folderBackup, keepFull, keepIncr);
 end;
 	
@@ -354,6 +365,13 @@ procedure ProgInit();
 begin
 	pathPid := GetPathOfPidFile();
 	pathConfig := GetProgramFolder() + '\' + CONF_NAME;
+	
+	// Store files in a temp folder 
+	folderTemp := ReadSettingKey(pathConfig, 'Settings', 'TempFolder');
+	MakeFolderTree(folderTemp);
+	
+	WriteLn(folderTemp);
+	
 end;
 
 
@@ -376,7 +394,6 @@ begin
 	begin
 		ProcessSingleBackupSet(ParamStr(1));
 	end;
-	//WriteLn('Number of sub directories of D:\TEMP: ', CountSubDirectories('D:\TEMP\'));
 end;
 
 
@@ -385,5 +402,4 @@ begin
 	ProgInit();
 	ProgRun();
 	ProgDone();
-	//KeepNewestFolders('D:\BACKUPS\VM70AS006-EXPORT\full', 7);
 end.
